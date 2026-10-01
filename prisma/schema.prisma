@@ -1,0 +1,495 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String
+  email                 String                 @unique
+  passwordHash          String
+  role                  String                 @default("user") // "user", "trainer", "admin"
+  avatarUrl             String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  profile               UserProfile?
+  goals                 FitnessGoal[]
+  workoutSessions       WorkoutSession[]
+  progressRecords       ProgressRecord[]
+  bodyMeasurements      BodyMeasurement[]
+  meals                 Meal[]
+  nutritionLogs         NutritionLog[]
+  habitLogs             HabitLog[]
+  sleepLogs             SleepLog[]
+  waterLogs             WaterLog[]
+  achievements          UserAchievement[]
+  challengeParticipants ChallengeParticipant[]
+  trainerProfile        Trainer?
+  clientRelations       TrainerClient[]        @relation("ClientTrainers")
+  sentMessages          Message[]              @relation("SentMessages")
+  receivedMessages      Message[]              @relation("ReceivedMessages")
+  notifications         Notification[]
+  aiRecommendations     AiRecommendation[]
+  aiConversations       AiConversation[]
+  mlPredictions         MlPrediction[]
+  exerciseAnalyses      ExerciseAnalysis[]
+  subscriptions         Subscription[]
+  reportsFiled          Report[]               @relation("UserReports")
+}
+
+model UserProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth           String?
+  gender                String?  // "male", "female", "other", "prefer_not_to_say"
+  heightCm              Float?
+  currentWeightKg       Float?
+  targetWeightKg        Float?
+  fitnessLevel          String   @default("beginner") // "beginner", "intermediate", "advanced"
+  activityLevel         String   @default("moderate") // "sedentary", "light", "moderate", "very_active"
+  dailySleepHours       Float?   @default(7.5)
+  workType              String?  @default("desk")
+  workoutDaysPerWeek    Int      @default(3)
+  preferredDurationMins Int      @default(45)
+  equipment             String   @default("[\"bodyweight\"]") // JSON array string
+  limitations           String?  // injury or medical notes
+  dietaryPreferences    String?  @default("none") // "none", "vegetarian", "vegan", "keto", "paleo"
+  bmr                   Float?
+  tdee                  Float?
+  calorieTarget         Float?   @default(2200)
+  waterTargetMl         Int      @default(2500)
+  onboardingCompleted   Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
+}
+
+model FitnessGoal {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalType     String    // "lose_weight", "gain_muscle", "maintain_weight", "improve_endurance", "improve_strength", "general_fitness"
+  targetValue  Float?
+  currentValue Float?
+  unit         String?
+  targetDate   DateTime?
+  status       String    @default("active") // "active", "achieved", "paused"
+  createdAt    DateTime  @default(now())
+}
+
+model MuscleGroup {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  exercises   Exercise[]
+}
+
+model Exercise {
+  id                  String             @id @default(cuid())
+  name                String
+  description         String
+  muscleGroupId       String
+  muscleGroup         MuscleGroup        @relation(fields: [muscleGroupId], references: [id])
+  secondaryMuscles    String?            // comma-separated or JSON
+  equipment           String             // "bodyweight", "dumbbells", "barbell", "cable", "machine", "bands"
+  difficulty          String             @default("intermediate") // "beginner", "intermediate", "advanced"
+  instructions        String             // Multi-step instructions
+  defaultSets         Int                @default(3)
+  defaultReps         Int                @default(10)
+  defaultRestSeconds  Int                @default(60)
+  estimatedCalories   Float              @default(8.5)
+  videoUrl            String?
+  imageUrl            String?
+  exerciseType        String             @default("strength") // "strength", "cardio", "mobility", "bodyweight"
+  poseSupported       Boolean            @default(false) // for CV form analysis (squat, pushup, etc.)
+  workoutExercises    WorkoutExercise[]
+  exerciseSets        ExerciseSet[]
+  progressRecords     ProgressRecord[]
+  exerciseAnalyses    ExerciseAnalysis[]
+}
+
+model WorkoutPlan {
+  id             String    @id @default(cuid())
+  title          String
+  description    String
+  creatorId      String?
+  isAiGenerated  Boolean   @default(false)
+  targetGoal     String?
+  fitnessLevel   String    @default("intermediate")
+  daysPerWeek    Int       @default(3)
+  durationWeeks  Int       @default(4)
+  workouts       Workout[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Workout {
+  id                    String            @id @default(cuid())
+  planId                String?
+  plan                  WorkoutPlan?      @relation(fields: [planId], references: [id], onDelete: SetNull)
+  title                 String
+  description           String?
+  dayOfWeek             Int?              // 1 to 7
+  estimatedDurationMins Int               @default(45)
+  estimatedCalories     Float             @default(300)
+  exercises             WorkoutExercise[]
+  sessions              WorkoutSession[]
+  createdAt             DateTime          @default(now())
+}
+
+model WorkoutExercise {
+  id                String   @id @default(cuid())
+  workoutId         String
+  workout           Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId        String
+  exercise          Exercise @relation(fields: [exerciseId], references: [id])
+  orderIndex        Int      @default(0)
+  targetSets        Int      @default(3)
+  targetReps        Int      @default(10)
+  targetWeightKg    Float?   @default(0)
+  targetRestSeconds Int      @default(60)
+  notes             String?
+}
+
+model WorkoutSession {
+  id                   String        @id @default(cuid())
+  userId               String
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutId            String?
+  workout              Workout?      @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  title                String
+  startTime            DateTime      @default(now())
+  endTime              DateTime?
+  durationSeconds      Int           @default(0)
+  totalVolumeKg        Float         @default(0)
+  totalCaloriesBurned  Float         @default(0)
+  perceivedExertion    Int?          @default(7) // 1 to 10
+  notes                String?
+  completed            Boolean       @default(false)
+  exerciseSets         ExerciseSet[]
+  createdAt            DateTime      @default(now())
+}
+
+model ExerciseSet {
+  id            String         @id @default(cuid())
+  sessionId     String
+  session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId    String
+  exercise      Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber     Int
+  repsCompleted Int
+  weightKg      Float
+  rpe           Float?
+  isPr          Boolean        @default(false)
+  notes         String?
+}
+
+model ProgressRecord {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId           String
+  exercise             Exercise @relation(fields: [exerciseId], references: [id])
+  bestWeightKg         Float
+  bestReps             Int
+  estimatedOneRepMaxKg Float
+  totalVolumeKg        Float
+  achievedAt           DateTime @default(now())
+}
+
+model BodyMeasurement {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime @default(now())
+  weightKg    Float
+  bodyFatPct  Float?
+  chestCm     Float?
+  waistCm     Float?
+  armsCm      Float?
+  thighsCm    Float?
+  photoUrl    String?
+  notes       String?
+}
+
+model Food {
+  id          String      @id @default(cuid())
+  name        String
+  brand       String?
+  calories    Float
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  fiberG      Float       @default(0)
+  servingSize Float       @default(100)
+  servingUnit String      @default("g")
+  category    String      @default("General") // Protein, Grains, Dairy, Fruit, Vegetables, Snacks
+  mealItems   MealItem[]
+}
+
+model Meal {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String     // "Breakfast", "Lunch", "Dinner", "Snacks"
+  date          DateTime   @default(now())
+  totalCalories Float      @default(0)
+  totalProteinG Float      @default(0)
+  totalCarbsG   Float      @default(0)
+  totalFatG     Float      @default(0)
+  totalFiberG   Float      @default(0)
+  items         MealItem[]
+}
+
+model MealItem {
+  id          String   @id @default(cuid())
+  mealId      String
+  meal        Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  foodId      String
+  food        Food     @relation(fields: [foodId], references: [id])
+  servings    Float    @default(1)
+  calories    Float
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  fiberG      Float    @default(0)
+}
+
+model NutritionLog {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date             DateTime @default(now())
+  targetCalories   Float
+  consumedCalories Float
+  targetProteinG   Float
+  consumedProteinG Float
+  targetCarbsG     Float
+  consumedCarbsG   Float
+  targetFatG       Float
+  consumedFatG     Float
+}
+
+model Habit {
+  id            String     @id @default(cuid())
+  name          String
+  category      String     // "workout", "water", "sleep", "steps", "nutrition", "meditation", "stretching"
+  icon          String
+  defaultTarget Float
+  unit          String
+  habitLogs     HabitLog[]
+}
+
+model HabitLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  value     Float
+  completed Boolean  @default(false)
+}
+
+model SleepLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime @default(now())
+  bedtime         String   // "23:00"
+  wakeTime        String   // "07:00"
+  durationMinutes Int
+  qualityRating   Int      // 1 to 5
+  notes           String?
+}
+
+model WaterLog {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date     DateTime @default(now())
+  amountMl Int      @default(250)
+}
+
+model Achievement {
+  id                String            @id @default(cuid())
+  code              String            @unique
+  title             String
+  description       String
+  icon              String
+  category          String            // "workouts", "streak", "volume", "pr", "habits"
+  criteriaThreshold Float
+  userAchievements  UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+model Challenge {
+  id           String                 @id @default(cuid())
+  title        String
+  description  String
+  challengeType String                // "workouts", "steps", "streak", "volume"
+  targetValue  Float
+  unit         String
+  startDate    DateTime
+  endDate      DateTime
+  icon         String?
+  isPrivate    Boolean                @default(false)
+  createdById  String?
+  participants ChallengeParticipant[]
+  createdAt    DateTime               @default(now())
+}
+
+model ChallengeParticipant {
+  id              String    @id @default(cuid())
+  challengeId     String
+  challenge       Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentProgress Float     @default(0)
+  completed       Boolean   @default(false)
+  joinedAt        DateTime  @default(now())
+
+  @@unique([challengeId, userId])
+}
+
+model Trainer {
+  id            String          @id @default(cuid())
+  userId        String          @unique
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio           String
+  specialties   String          // "Hypertrophy, Functional, Strength"
+  certification String
+  hourlyRate    Float           @default(50)
+  rating        Float           @default(4.9)
+  clients       TrainerClient[]
+}
+
+model TrainerClient {
+  id         String   @id @default(cuid())
+  trainerId  String
+  trainer    Trainer  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     User     @relation("ClientTrainers", fields: [clientId], references: [id], onDelete: Cascade)
+  status     String   @default("active") // "active", "pending", "ended"
+  assignedAt DateTime @default(now())
+  notes      String?
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  isRead     Boolean  @default(false)
+  sentAt     DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // "workout", "pr", "habit", "milestone", "trainer", "challenge"
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AiRecommendation {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // "workout", "nutrition", "recovery", "progression"
+  title           String
+  content         String
+  rationale       String?
+  confidenceScore Float    @default(0.88)
+  feedbackRating  Int?     // 1 to 5
+  createdAt       DateTime @default(now())
+}
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String      @default("Fitness Coach Session")
+  messages  AiMessage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // "user", "assistant", "system"
+  content        String
+  metadataJson   String?
+  createdAt      DateTime       @default(now())
+}
+
+model MlPrediction {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  predictionType     String   // "weight_trajectory", "one_rep_max_trend", "injury_risk_index", "consistency_score"
+  inputFeaturesJson  String
+  predictedValue     Float
+  confidenceLower    Float
+  confidenceUpper    Float
+  targetDate         DateTime
+  generatedAt        DateTime @default(now())
+}
+
+model ExerciseAnalysis {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId         String
+  exercise           Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  videoUrl           String?
+  repCount           Int      @default(0)
+  avgRangeOfMotionPct Float   @default(0)
+  tempoSeconds       Float    @default(0)
+  formScore          Float    @default(0) // 0 to 100
+  feedbackJson       String   // Array of biomechanical observations
+  analyzedAt         DateTime @default(now())
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier      String   @default("free") // "free", "pro", "trainer"
+  status    String   @default("active") // "active", "canceled", "past_due"
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  autoRenew Boolean  @default(true)
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  reporterId     String
+  reporter       User     @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedType   String   // "post", "comment", "trainer", "user"
+  reportedItemId String
+  reason         String
+  status         String   @default("pending") // "pending", "reviewed", "dismissed"
+  createdAt      DateTime @default(now())
+}
